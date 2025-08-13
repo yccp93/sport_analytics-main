@@ -1,0 +1,93 @@
+print("\n--- 步驟 4: f ---")
+
+all_frame_angles = []
+valid_frames_count = 0
+total_frames_in_pose_df = len(pose_df)
+
+# 設定最小可見度閾值。低於此值的關鍵點將被視為無效。
+# MediaPipe 的可見度範圍通常在 0.0 到 1.0。
+# 0.1 是一個比較寬鬆的閾值，確保大部分檢測到的點都被考慮。
+MIN_VISIBILITY_THRESHOLD = 0.1 
+
+for index, row in pose_df.iterrows():
+    frame_id = row['frame_id']
+    landmarks_current_frame = [None] * 33 # 初始化33個關鍵點位置為None
+
+    # 提取關鍵點並應用可見度閾值
+    for i in range(33):
+        x_col = f'landmark_{i}_x'
+        y_col = f'landmark_{i}_y'
+        z_col = f'landmark_{i}_z'
+        visibility_col = f'landmark_{i}_visibility'
+        
+        # 確保列存在且可見度足夠高
+        if (x_col in row and y_col in row and z_col in row and visibility_col in row and
+            pd.notna(row[x_col]) and pd.notna(row[y_col]) and pd.notna(row[z_col]) and
+            row[visibility_col] > MIN_VISIBILITY_THRESHOLD):
+            
+            # MediaPipe 輸出的 x, y, z 座標通常是標準化座標 (0-1)，這裡直接使用它們。
+            # 即使它們是像素座標，角度計算也是相對的。
+            landmarks_current_frame[i] = (row[x_col], row[y_col], row[z_col])
+        # 如果不符合條件，該點位保持為 None
+
+    angles_data = {'frame_id': frame_id}
+    
+    # 嘗試計算所有關節角度
+    # 每個角度計算前，都檢查其所需的關鍵點是否有效 (非 None)
+    try:
+        # 肩膀外展
+        if landmarks_current_frame[12] and landmarks_current_frame[14]:
+            angles_data['shoulder_abduction'] = compute_shoulder_abduction(landmarks_current_frame)
+        else:
+            angles_data['shoulder_abduction'] = None
+
+        # 手肘屈曲
+        if landmarks_current_frame[12] and landmarks_current_frame[14] and landmarks_current_frame[16]:
+            angles_data['elbow_flexion'] = compute_elbow_flexion(landmarks_current_frame)
+        else:
+            angles_data['elbow_flexion'] = None
+
+        # 手腕背屈 (預設為 None，因為 MediaPipe Pose 限制)
+        angles_data['wrist_extension'] = compute_wrist_extension(landmarks_current_frame) # 函數本身就返回 None
+
+        # 軀幹旋轉
+        if landmarks_current_frame[11] and landmarks_current_frame[12]:
+            angles_data['trunk_rotation'] = compute_trunk_rotation(landmarks_current_frame)
+        else:
+            angles_data['trunk_rotation'] = None
+
+        # 髖屈曲
+        if landmarks_current_frame[12] and landmarks_current_frame[24] and landmarks_current_frame[26]:
+            angles_data['hip_flexion'] = compute_hip_flexion(landmarks_current_frame)
+        else:
+            angles_data['hip_flexion'] = None
+
+        # 膝屈曲
+        if landmarks_current_frame[24] and landmarks_current_frame[26] and landmarks_current_frame[28]:
+            angles_data['knee_flexion'] = compute_knee_flexion(landmarks_current_frame)
+        else:
+            angles_data['knee_flexion'] = None
+
+        # 檢查本幀是否有任何一個角度被成功計算 (即非 None)
+        if any(v is not None for k, v in angles_data.items() if k != 'frame_id'):
+            valid_frames_count += 1
+
+    except Exception as e:
+        print(f"警告: 幀 {frame_id} 計算角度時發生錯誤：{e}")
+        # 如果計算過程中發生其他錯誤，將所有角度設為 None
+        for key in expert_standards.keys():
+            if key not in angles_data: angles_data[key] = None
+
+    all_frame_angles.append(angles_data)
+
+# 將角度數據轉換為 DataFrame
+angles_df = pd.DataFrame(all_frame_angles)
+
+# 移除所有角度都為 None 的行，但保留 frame_id
+columns_to_check_for_nan = [col for col in angles_df.columns if col != 'frame_id']
+angles_df = angles_df.dropna(subset=columns_to_check_for_nan, how='all').reset_index(drop=True)
+
+print(f"總共有 {total_frames_in_pose_df} 幀，成功計算出至少一個角度的有效幀數為 {valid_frames_count}。")
+print(f"最終角度數據中包含 {len(angles_df)} 幀 (移除所有角度為 NaN 的行後)。")
+print("\n角度數據前5行：")
+print(angles_df.head())
