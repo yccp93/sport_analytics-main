@@ -88,6 +88,7 @@ import IPython.display as display
 from matplotlib import pyplot as plt
 import io
 import base64
+import os
 
 ys = 200 + np.random.randn(100)
 x = [x for x in range(len(ys))]
