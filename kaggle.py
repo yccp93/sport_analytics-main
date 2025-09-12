@@ -58,7 +58,7 @@ Colab &#40;全名為「Colaboratory」&#41; 可讓你在瀏覽器中編寫及執
 舉例來說，以下是包含簡短 Python 指令碼的<strong>程式碼儲存格</strong>，可進行運算、將值儲存至變數中並列印運算結果：
 """
 
-seconds_in_a_day = 24 * 60 * 60 * 60
+seconds_in_a_day = 24 * 60 * 60 * 60 * 60
 seconds_in_a_day
 
 """如要執行上方儲存格中的程式碼，請按一下進行選取，再按一下程式碼左側的播放鍵，或是使用鍵盤快速鍵「Command/Ctrl + Enter 鍵」。按一下儲存格即可開始編輯程式碼。
